@@ -1,0 +1,32 @@
+# Node.js
+node_modules/
+.next/
+out/
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Env files
+.env*
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# VSCode
+.vscode/
+
+# GitHub Pages
+public/data/*.json
+!public/data/accounts.json
+
+# Misc
+*.local 
