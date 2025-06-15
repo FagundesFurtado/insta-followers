@@ -67,18 +67,7 @@ export default function Home() {
           const data = await res.json();
           return { username, history: data.history };
         } catch (err) {
-          console.warn(err);
-          try {
-            const response = await fetch(`/api/update-account?username=${username}`);
-            if (response.ok) {
-              const res = await fetch(`/data/${username}.json`);
-              const data = await res.json();
-              return { username, history: data.history };
-            }
-            throw new Error(`Failed to update ${username}`);
-          } catch (e) {
-            throw new Error(`Failed to fetch data for ${username}`);
-          }
+          throw new Error(`Failed to fetch data for ${username}`);
         }
       });
 
@@ -96,44 +85,11 @@ export default function Home() {
   }, [selectedAccounts]);
 
   const handleAddAccount = async (username: string) => {
-    try {
-      const response = await fetch("/api/add-account", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ username }),
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to add account");
-      }
-
-      await fetchAccounts();
-    } catch (err) {
-      throw new Error(err instanceof Error ? err.message : "Failed to add account");
-    }
+    throw new Error("Account management is not available in static export. Please update accounts.json manually.");
   };
 
   const handleDeleteAccount = async (username: string) => {
-    try {
-      const response = await fetch("/api/delete-account", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ username }),
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to delete account");
-      }
-
-      setSelectedAccounts((prev) => prev.filter((acc) => acc !== username));
-      await fetchAccounts();
-    } catch (err) {
-      throw new Error(err instanceof Error ? err.message : "Failed to delete account");
-    }
+    throw new Error("Account management is not available in static export. Please update accounts.json manually.");
   };
 
   const colors = [
