@@ -1,8 +1,8 @@
-import { NextResponse } from 'next/server';
+import { NextResponse, NextRequest } from 'next/server';
 import { promises as fs } from 'fs';
 import path from 'path';
 
-export async function GET(request: Request, { params }: { params: { username: string } }) {
+export async function GET(request: NextRequest, { params }: { params: { username: string } }) {
   const { username } = params;
 
   try {
