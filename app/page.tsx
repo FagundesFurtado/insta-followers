@@ -41,7 +41,7 @@ export default function Home() {
 
   const fetchAccounts = async () => {
     try {
-      const res = await fetch("/data/accounts.json");
+      const res = await fetch("/api/accounts");
       const data = await res.json();
       setAccounts(data);
     } catch (err) {
@@ -60,7 +60,7 @@ export default function Home() {
 
       const fetchPromises = selectedAccounts.map(async (username) => {
         try {
-          const res = await fetch(`/data/${username}.json`);
+          const res = await fetch(`/api/data/${username}`);
           if (!res.ok) {
             throw new Error(`No data file found for ${username}`);
           }
@@ -85,11 +85,41 @@ export default function Home() {
   }, [selectedAccounts]);
 
   const handleAddAccount = async (username: string) => {
-    throw new Error("Account management is not available in static export. Please update accounts.json manually.");
+    try {
+      const res = await fetch("/api/accounts/add", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ username }),
+      });
+      if (!res.ok) {
+        throw new Error(`Failed to add account: ${res.statusText}`);
+      }
+      await fetchAccounts(); // Re-fetch accounts after adding
+    } catch (error) {
+      console.error("Error adding account:", error);
+      setError(`Error adding account: ${(error as Error).message}`);
+    }
   };
 
   const handleDeleteAccount = async (username: string) => {
-    throw new Error("Account management is not available in static export. Please update accounts.json manually.");
+    try {
+      const res = await fetch("/api/accounts/delete", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ username }),
+      });
+      if (!res.ok) {
+        throw new Error(`Failed to delete account: ${res.statusText}`);
+      }
+      await fetchAccounts(); // Re-fetch accounts after deleting
+    } catch (error) {
+      console.error("Error deleting account:", error);
+      setError(`Error deleting account: ${(error as Error).message}`);
+    }
   };
 
   const colors = [
