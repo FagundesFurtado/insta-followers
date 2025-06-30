@@ -6,16 +6,14 @@ export async function GET(request: NextRequest, context: any) {
   const { username } = context.params;
 
   try {
-    const filePath = path.join(process.cwd(), 'public', 'data', 'accounts.json');
+    const filePath = path.join(process.cwd(), 'public', 'data', `${username}.json`);
     const fileContents = await fs.readFile(filePath, 'utf8');
-    const accounts = JSON.parse(fileContents);
+    const userData = JSON.parse(fileContents);
 
-    const userAccount = accounts.find((account: any) => account.username === username);
-
-    if (userAccount) {
-      return NextResponse.json(userAccount);
+    if (userData) {
+      return NextResponse.json(userData);
     } else {
-      return new NextResponse('User not found', { status: 404 });
+      return new NextResponse('User data not found', { status: 404 });
     }
   } catch (error) {
     console.error('Error fetching user data:', error);
