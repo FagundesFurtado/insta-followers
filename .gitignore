@@ -24,9 +24,5 @@ __pycache__/
 # VSCode
 .vscode/
 
-# GitHub Pages
-public/data/*.json
-!public/data/accounts.json
-
 # Misc
 *.local 
