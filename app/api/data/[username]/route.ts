@@ -2,8 +2,16 @@ import { NextResponse, NextRequest } from 'next/server';
 import { promises as fs } from 'fs';
 import path from 'path';
 
-export async function GET(request: NextRequest, { params }: { params: { username: string } }) {
-  const { username } = params;
+interface RouteParams {
+  username: string;
+}
+
+interface RouteContext {
+  params: RouteParams;
+}
+
+export async function GET(request: NextRequest, context: RouteContext) {
+  const { username } = context.params;
 
   try {
     const filePath = path.join(process.cwd(), 'public', 'data', 'accounts.json');
@@ -22,3 +30,4 @@ export async function GET(request: NextRequest, { params }: { params: { username
     return new NextResponse('Internal Server Error', { status: 500 });
   }
 }
+
