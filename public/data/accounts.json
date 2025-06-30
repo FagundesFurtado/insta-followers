@@ -1,8 +1,50 @@
 [
-  "afterthatoficial",
-  "zaionbanda",
-  "showliana",
-  "meiobrasileira",
-  "licksmaltz",
-  "cela"
+  {
+    "username": "afterthatoficial",
+    "history": [
+      {"date": "2023-01-01", "followers": 100, "following": 50},
+      {"date": "2023-01-02", "followers": 105, "following": 51},
+      {"date": "2023-01-03", "followers": 110, "following": 52}
+    ]
+  },
+  {
+    "username": "zaionbanda",
+    "history": [
+      {"date": "2023-01-01", "followers": 200, "following": 60},
+      {"date": "2023-01-02", "followers": 210, "following": 61},
+      {"date": "2023-01-03", "followers": 220, "following": 62}
+    ]
+  },
+  {
+    "username": "showliana",
+    "history": [
+      {"date": "2023-01-01", "followers": 300, "following": 70},
+      {"date": "2023-01-02", "followers": 315, "following": 71},
+      {"date": "2023-01-03", "followers": 330, "following": 72}
+    ]
+  },
+  {
+    "username": "meiobrasileira",
+    "history": [
+      {"date": "2023-01-01", "followers": 400, "following": 80},
+      {"date": "2023-01-02", "followers": 420, "following": 81},
+      {"date": "2023-01-03", "followers": 440, "following": 82}
+    ]
+  },
+  {
+    "username": "licksmaltz",
+    "history": [
+      {"date": "2023-01-01", "followers": 500, "following": 90},
+      {"date": "2023-01-02", "followers": 525, "following": 91},
+      {"date": "2023-01-03", "followers": 550, "following": 92}
+    ]
+  },
+  {
+    "username": "cela",
+    "history": [
+      {"date": "2023-01-01", "followers": 600, "following": 100},
+      {"date": "2023-01-02", "followers": 630, "following": 101},
+      {"date": "2023-01-03", "followers": 660, "following": 102}
+    ]
+  }
 ]
