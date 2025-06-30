@@ -2,15 +2,7 @@ import { NextResponse, NextRequest } from 'next/server';
 import { promises as fs } from 'fs';
 import path from 'path';
 
-interface RouteParams {
-  username: string;
-}
-
-interface RouteContext {
-  params: RouteParams;
-}
-
-export async function GET(request: NextRequest, context: RouteContext) {
+export async function GET(request: NextRequest, context: any) {
   const { username } = context.params;
 
   try {
