@@ -3,6 +3,7 @@ import datetime
 import os
 import sys
 import time
+import random
 import instaloader
 from instaloader.exceptions import ConnectionException
 
@@ -10,12 +11,19 @@ from instaloader.exceptions import ConnectionException
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA_DIR = os.path.join(BASE_DIR, "public", "data")
 ACCOUNTS_FILE = os.path.join(DATA_DIR, "accounts.json")
+SESSION_FILE = os.path.join(BASE_DIR, "instagram.session")
 print(f"Base directory: {BASE_DIR}")
 print(f"Data directory: {DATA_DIR}")
 
 # --- Initialize Instaloader ---
 loader = instaloader.Instaloader()
-print("Instaloader initialized anonymously.")
+
+# Try to load a session file
+try:
+    loader.load_session_from_file("cristianofagundes", SESSION_FILE)
+    print("Session loaded successfully.")
+except FileNotFoundError:
+    print("Session file not found. Using anonymous access.")
 
 # --- Load Accounts ---
 try:
@@ -76,8 +84,9 @@ for username in accounts:
         print(f"An unexpected error occurred while processing {username}: {e}")
     
     # Add a small delay to be less aggressive
-    print("Waiting for 5 seconds before next account...")
-    time.sleep(5)
+    sleep_time = random.uniform(30, 90)
+    print(f"Waiting for {sleep_time:.2f} seconds before next account...")
+    time.sleep(sleep_time)
 
 
 print("\n--- Script finished ---")
