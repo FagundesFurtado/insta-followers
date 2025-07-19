@@ -29,10 +29,3 @@ jobs:
           git add public/data
           git commit -m "Update followers" || echo "No changes to commit"
           git push
-      - name: Wait for deployment
-        uses: lewagon/wait-on-check-action@v1.3.3
-        with:
-          ref: ${{ github.ref }}
-          check-name: 'deploy'
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
-          wait-interval: 30

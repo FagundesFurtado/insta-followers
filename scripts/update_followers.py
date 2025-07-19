@@ -75,16 +75,23 @@ for username in accounts:
             print(f"Data for today ({today}) already exists for {username}. Skipping write operation.")
 
     except ConnectionException as e:
-        # Handle specific connection errors which are likely on GitHub Actions
+        # Handle specific connection errors which are likely rate limit related
         print(f"ERROR: A connection error occurred for {username}: {e}")
         print("This is likely due to Instagram rate-limiting or blocking the request.")
+        print("Implementing exponential backoff...")
+        
+        # Exponential backoff: wait longer before continuing
+        backoff_time = random.uniform(300, 600)  # 5-10 minutes
+        print(f"Waiting {backoff_time:.2f} seconds before continuing...")
+        time.sleep(backoff_time)
         print("The script will continue with the next user.")
     except Exception as e:
         # Handle any other unexpected errors
         print(f"An unexpected error occurred while processing {username}: {e}")
     
-    # Add a small delay to be less aggressive
-    sleep_time = random.uniform(30, 90)
+    # Add significant delay to respect Instagram rate limits
+    # Instagram allows ~200 requests/hour, so 2-5 minutes between requests is safer
+    sleep_time = random.uniform(120, 300)  # 2-5 minutes
     print(f"Waiting for {sleep_time:.2f} seconds before next account...")
     time.sleep(sleep_time)
 
