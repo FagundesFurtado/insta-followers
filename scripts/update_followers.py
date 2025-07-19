@@ -16,7 +16,19 @@ print(f"Base directory: {BASE_DIR}")
 print(f"Data directory: {DATA_DIR}")
 
 # --- Initialize Instaloader ---
-loader = instaloader.Instaloader()
+loader = instaloader.Instaloader(
+    quiet=False,
+    user_agent=None,
+    dirname_pattern=None,
+    filename_pattern=None,
+    download_video_thumbnails=False,
+    download_geotags=False,
+    download_comments=False,
+    save_metadata=False,
+    compress_json=False,
+    post_metadata_txt_pattern=None,
+    max_connection_attempts=1  # Reduce connection attempts to avoid rapid retries
+)
 
 # Try to load a session file
 try:
@@ -24,6 +36,7 @@ try:
     print("Session loaded successfully.")
 except FileNotFoundError:
     print("Session file not found. Using anonymous access.")
+    print("WARNING: Anonymous access has much stricter rate limits.")
 
 # --- Load Accounts ---
 try:
@@ -39,7 +52,18 @@ except json.JSONDecodeError:
 
 
 # --- Update Followers ---
-for username in accounts:
+# Limit to 3 accounts per run to avoid hitting rate limits
+MAX_ACCOUNTS_PER_RUN = 3
+accounts_to_process = accounts[:MAX_ACCOUNTS_PER_RUN]
+
+if len(accounts) > MAX_ACCOUNTS_PER_RUN:
+    print(f"NOTE: Processing only {MAX_ACCOUNTS_PER_RUN} out of {len(accounts)} accounts to avoid rate limits.")
+    print(f"Accounts to process: {', '.join(accounts_to_process)}")
+    print(f"Remaining accounts: {', '.join(accounts[MAX_ACCOUNTS_PER_RUN:])}")
+else:
+    print(f"Processing all {len(accounts)} accounts: {', '.join(accounts_to_process)}")
+
+for username in accounts_to_process:
     print(f"\n--- Processing {username} ---")
     try:
         # Fetch profile data
@@ -80,8 +104,8 @@ for username in accounts:
         print("This is likely due to Instagram rate-limiting or blocking the request.")
         print("Implementing exponential backoff...")
         
-        # Exponential backoff: wait longer before continuing
-        backoff_time = random.uniform(300, 600)  # 5-10 minutes
+        # Exponential backoff: wait much longer for 401 errors
+        backoff_time = random.uniform(900, 1800)  # 15-30 minutes
         print(f"Waiting {backoff_time:.2f} seconds before continuing...")
         time.sleep(backoff_time)
         print("The script will continue with the next user.")
@@ -89,9 +113,9 @@ for username in accounts:
         # Handle any other unexpected errors
         print(f"An unexpected error occurred while processing {username}: {e}")
     
-    # Add significant delay to respect Instagram rate limits
-    # Instagram allows ~200 requests/hour, so 2-5 minutes between requests is safer
-    sleep_time = random.uniform(120, 300)  # 2-5 minutes
+    # Add very conservative delay to avoid 401 errors
+    # Instagram is very aggressive with rate limiting, use 5-15 minutes between requests
+    sleep_time = random.uniform(300, 900)  # 5-15 minutes
     print(f"Waiting for {sleep_time:.2f} seconds before next account...")
     time.sleep(sleep_time)
 
