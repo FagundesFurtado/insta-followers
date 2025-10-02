@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
-import { promises as fs } from 'fs';
-import path from 'path';
+import pool, { ensureSchema } from '@/lib/db';
+import { isDeviceAuthorized } from '@/lib/auth';
 
 export async function POST(request: Request) {
   const { username } = await request.json();
@@ -10,20 +10,48 @@ export async function POST(request: Request) {
   }
 
   try {
-    const filePath = path.join(process.cwd(), 'public', 'data', 'accounts.json');
-    const fileContents = await fs.readFile(filePath, 'utf8');
-    const accounts = JSON.parse(fileContents);
+    const normalizedUsername = String(username).trim().toLowerCase();
 
-    if (accounts.some((acc: any) => acc.username === username)) {
-      return new NextResponse('Account already exists', { status: 409 });
+    if (!normalizedUsername) {
+      return new NextResponse('Username is required', { status: 400 });
     }
 
-    const newAccount = { username, history: [] }; // Initialize with empty history
-    accounts.push(newAccount);
+    const deviceUuid = request.headers.get('x-device-uuid');
+    if (!(await isDeviceAuthorized(deviceUuid))) {
+      return new NextResponse('Forbidden', { status: 403 });
+    }
 
-    await fs.writeFile(filePath, JSON.stringify(accounts, null, 2), 'utf8');
+    await ensureSchema();
 
-    return new NextResponse('Account added successfully', { status: 200 });
+    const existing = await pool.query<{ is_deleted: boolean }>(
+      'SELECT is_deleted FROM accounts WHERE username = $1',
+      [normalizedUsername]
+    );
+
+    if (existing.rows.length > 0) {
+      const [{ is_deleted }] = existing.rows;
+      if (!is_deleted) {
+        return new NextResponse('Account already exists', { status: 409 });
+      }
+
+      await pool.query(
+        `UPDATE accounts
+         SET is_deleted = FALSE,
+             deleted_at = NULL
+         WHERE username = $1`,
+        [normalizedUsername]
+      );
+
+      return new NextResponse('Account reactivated successfully', { status: 200 });
+    }
+
+    await pool.query(
+      `INSERT INTO accounts (username, is_deleted, deleted_at)
+       VALUES ($1, FALSE, NULL)`,
+      [normalizedUsername]
+    );
+
+    return new NextResponse('Account added successfully', { status: 201 });
   } catch (error) {
     console.error('Error adding account:', error);
     return new NextResponse('Internal Server Error', { status: 500 });

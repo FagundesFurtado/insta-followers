@@ -1,0 +1,26 @@
+version: '3.9'
+
+services:
+  web:
+    build: .
+    restart: unless-stopped
+    environment:
+      POSTGRES_HOST: ${POSTGRES_HOST:-postgres}
+      POSTGRES_PORT: ${POSTGRES_PORT:-5432}
+      POSTGRES_USER: ${POSTGRES_USER:-devuser}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-devpass}
+      POSTGRES_DB: ${POSTGRES_DB:-insta-followers}
+    ports:
+      - "3333:3000"
+    volumes: []
+    # Optional mounts:
+    #   - ./instagram.session:/app/instagram.session:ro
+    #   - ./public/data:/app/public/data
+    # Attach the service to the same network as your existing PostgreSQL container.
+    # Example: create or reuse an external network and list it here.
+    # networks:
+    #   - shared
+
+# networks:
+#   shared:
+#     external: true

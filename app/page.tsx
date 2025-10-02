@@ -19,15 +19,47 @@ import { AccountManager } from "../components/ui/account-manager";
 
 ChartJS.register(LineElement, CategoryScale, LinearScale, PointElement, Tooltip, Legend, Filler, Title);
 
+const MAX_FOLLOWERS_DISPLAY = 200;
+
+type DateRangeOption = '7d' | '15d' | '30d' | '90d' | '365d' | 'all';
+
+const DATE_RANGE_OPTIONS: Array<{ value: DateRangeOption; label: string; days?: number }> = [
+  { value: '7d', label: 'Últimos 7 dias', days: 7 },
+  { value: '15d', label: 'Últimos 15 dias', days: 15 },
+  { value: '30d', label: 'Último mês', days: 30 },
+  { value: '90d', label: 'Últimos 3 meses', days: 90 },
+  { value: '365d', label: 'Último ano', days: 365 },
+  { value: 'all', label: 'Tudo' },
+];
+
+const RANGE_DAYS_MAP: Record<DateRangeOption, number | null> = {
+  '7d': 7,
+  '15d': 15,
+  '30d': 30,
+  '90d': 90,
+  '365d': 365,
+  all: null,
+};
+
 interface FollowerData {
   date: string;
   followers: number;
   following?: number;
 }
 
+interface FollowerDetail {
+  username: string;
+  fullName?: string | null;
+  profilePicUrl?: string | null;
+  isPrivate?: boolean | null;
+  isVerified?: boolean | null;
+  fetchedAt?: string | null;
+}
+
 interface AccountData {
   username: string;
   history: FollowerData[];
+  followers: FollowerDetail[];
 }
 
 export default function Home() {
@@ -38,6 +70,12 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const [showAccountManager, setShowAccountManager] = useState(false);
   const [metric, setMetric] = useState<'followers' | 'following'>('followers');
+  const [dateRange, setDateRange] = useState<DateRangeOption>('all');
+  const [deviceUuid, setDeviceUuid] = useState('');
+  const [isDeviceAuthorized, setIsDeviceAuthorized] = useState(false);
+  const [isValidatingDevice, setIsValidatingDevice] = useState(false);
+  const [storageError, setStorageError] = useState<string | null>(null);
+  const [storageSupported, setStorageSupported] = useState(true);
 
   const fetchAccounts = async () => {
     try {
@@ -54,6 +92,75 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    let detectedUuid = '';
+
+    try {
+      const storedUuid = window.localStorage.getItem('device-uuid');
+      if (storedUuid && storedUuid.trim().length > 0) {
+        detectedUuid = storedUuid;
+      } else if (window.crypto && 'randomUUID' in window.crypto) {
+        detectedUuid = window.crypto.randomUUID();
+        window.localStorage.setItem('device-uuid', detectedUuid);
+      }
+      setStorageSupported(true);
+      setStorageError(null);
+    } catch (storageAccessError) {
+      console.warn('Local storage is not accessible in this context.', storageAccessError);
+      setStorageSupported(false);
+      setStorageError('Não foi possível acessar o armazenamento local. O UUID deste dispositivo será gerado para esta sessão apenas.');
+
+      if (window.crypto && 'randomUUID' in window.crypto) {
+        detectedUuid = window.crypto.randomUUID();
+      }
+    }
+
+    if (detectedUuid) {
+      setDeviceUuid(detectedUuid);
+    }
+  }, []);
+
+  const validateDeviceUuid = async (uuid: string) => {
+    if (!uuid.trim()) {
+      setIsDeviceAuthorized(false);
+      return;
+    }
+
+    setIsValidatingDevice(true);
+    try {
+      const res = await fetch('/api/admin/device/verify', {
+        headers: {
+          'x-device-uuid': uuid,
+        },
+      });
+
+      if (!res.ok) {
+        throw new Error(`Failed to validate device (${res.status})`);
+      }
+
+      const data = await res.json();
+      setIsDeviceAuthorized(Boolean(data.authorized));
+    } catch (validationError) {
+      console.error('Failed to validate device uuid:', validationError);
+      setIsDeviceAuthorized(false);
+    } finally {
+      setIsValidatingDevice(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!deviceUuid) {
+      setIsDeviceAuthorized(false);
+      return;
+    }
+
+    validateDeviceUuid(deviceUuid);
+  }, [deviceUuid]);
+
+  useEffect(() => {
     if (selectedAccounts.length > 0) {
       setLoading(true);
       setError(null);
@@ -65,7 +172,26 @@ export default function Home() {
             throw new Error(`No data file found for ${username}`);
           }
           const data = await res.json();
-          return { username, history: data.history };
+          const followers: FollowerDetail[] = Array.isArray(data.followers)
+            ? data.followers.reduce((acc: FollowerDetail[], follower: Record<string, unknown>) => {
+                const username = String(follower.username ?? '').trim();
+                if (!username) {
+                  return acc;
+                }
+
+                acc.push({
+                  username,
+                  fullName: (follower.full_name as string | undefined) ?? null,
+                  profilePicUrl: (follower.profile_pic_url as string | undefined) ?? null,
+                  isPrivate: follower.is_private as boolean | undefined,
+                  isVerified: follower.is_verified as boolean | undefined,
+                  fetchedAt: (follower.fetched_at as string | undefined) ?? null,
+                });
+                return acc;
+              }, [])
+            : [];
+
+          return { username, history: data.history ?? [], followers };
         } catch (err) {
           throw new Error(`Failed to fetch data for ${username}`);
         }
@@ -85,15 +211,24 @@ export default function Home() {
   }, [selectedAccounts]);
 
   const handleAddAccount = async (username: string) => {
+    if (!isDeviceAuthorized) {
+      setError('UUID de dispositivo não autorizado.');
+      return;
+    }
+    setError(null);
     try {
       const res = await fetch("/api/accounts/add", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          "x-device-uuid": deviceUuid,
         },
         body: JSON.stringify({ username }),
       });
       if (!res.ok) {
+        if (res.status === 403) {
+          throw new Error('UUID de dispositivo inválido ou não autorizado.');
+        }
         throw new Error(`Failed to add account: ${res.statusText}`);
       }
       await fetchAccounts(); // Re-fetch accounts after adding
@@ -104,23 +239,61 @@ export default function Home() {
   };
 
   const handleDeleteAccount = async (username: string) => {
+    if (!isDeviceAuthorized) {
+      setError('UUID de dispositivo não autorizado.');
+      return;
+    }
+    setError(null);
     try {
       const res = await fetch("/api/accounts/delete", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          "x-device-uuid": deviceUuid,
         },
         body: JSON.stringify({ username }),
       });
       if (!res.ok) {
+        if (res.status === 403) {
+          throw new Error('UUID de dispositivo inválido ou não autorizado.');
+        }
         throw new Error(`Failed to delete account: ${res.statusText}`);
       }
       await fetchAccounts(); // Re-fetch accounts after deleting
+      setSelectedAccounts((prev) => prev.filter((acc) => acc !== username));
     } catch (error) {
       console.error("Error deleting account:", error);
       setError(`Error deleting account: ${(error as Error).message}`);
     }
   };
+
+  const filterHistoryByRange = (history: FollowerData[]): FollowerData[] => {
+    const rangeDays = RANGE_DAYS_MAP[dateRange];
+    if (!rangeDays) {
+      return history;
+    }
+
+    const threshold = new Date();
+    threshold.setHours(0, 0, 0, 0);
+    threshold.setDate(threshold.getDate() - (rangeDays - 1));
+
+    return history.filter((entry) => {
+      const entryDate = new Date(`${entry.date}T00:00:00Z`);
+      if (Number.isNaN(entryDate.getTime())) {
+        return false;
+      }
+      return entryDate >= threshold;
+    });
+  };
+
+  const filteredAccountsData = accountsData.map((account) => ({
+    ...account,
+    history: filterHistoryByRange(account.history),
+  }));
+
+  const referenceAccount = filteredAccountsData.find((account) => account.history.length > 0);
+  const labels = referenceAccount?.history.map((h) => h.date) ?? [];
+  const hasDataForRange = filteredAccountsData.some((account) => account.history.length > 0);
 
   const colors = [
     { border: 'rgb(59, 130, 246)', background: 'rgba(59, 130, 246, 0.1)' },
@@ -131,8 +304,8 @@ export default function Home() {
   ];
 
   const chartData = {
-    labels: accountsData[0]?.history.map((h) => h.date) || [],
-    datasets: accountsData.map((account, index) => ({
+    labels,
+    datasets: filteredAccountsData.map((account, index) => ({
       label: `@${account.username}`,
       data: account.history.map((h) => metric === 'followers' ? h.followers : h.following ?? 0),
       borderWidth: 2,
@@ -255,12 +428,17 @@ export default function Home() {
         </div>
 
         {showAccountManager && (
-          <AccountManager
-            accounts={accounts}
-            onAddAccount={handleAddAccount}
-            onDeleteAccount={handleDeleteAccount}
-          />
-        )}
+        <AccountManager
+          accounts={accounts}
+          onAddAccount={handleAddAccount}
+          onDeleteAccount={handleDeleteAccount}
+          deviceUuid={deviceUuid}
+          isDeviceAuthorized={isDeviceAuthorized}
+          isValidatingDevice={isValidatingDevice}
+          storageError={storageError}
+          storageSupported={storageSupported}
+        />
+      )}
 
         <Card variant="elevated" padding="lg">
           <CardHeader
@@ -284,38 +462,151 @@ export default function Home() {
         </Card>
 
         {selectedAccounts.length > 0 && (
-          <Card variant="elevated" padding="lg">
-            <CardContent>
-              <div className="flex justify-end mb-2">
-                <Button
-                  variant={metric === 'followers' ? 'default' : 'outline'}
-                  onClick={() => setMetric('followers')}
-                  className="mr-2"
-                >
-                  Followers
-                </Button>
-                <Button
-                  variant={metric === 'following' ? 'default' : 'outline'}
-                  onClick={() => setMetric('following')}
-                >
-                  Following
-                </Button>
-              </div>
-              <div className="h-[500px]">
+          <>
+            <Card variant="elevated" padding="lg">
+              <CardContent>
+                <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
+                  <div className="flex flex-wrap gap-2">
+                    {DATE_RANGE_OPTIONS.map((option) => (
+                      <Button
+                        key={option.value}
+                        variant={dateRange === option.value ? 'default' : 'outline'}
+                        onClick={() => setDateRange(option.value)}
+                      >
+                        {option.label}
+                      </Button>
+                    ))}
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      variant={metric === 'followers' ? 'default' : 'outline'}
+                      onClick={() => setMetric('followers')}
+                      className="mr-2"
+                    >
+                      Followers
+                    </Button>
+                    <Button
+                      variant={metric === 'following' ? 'default' : 'outline'}
+                      onClick={() => setMetric('following')}
+                    >
+                      Following
+                    </Button>
+                  </div>
+                </div>
+                <div className="h-[500px]">
+                  {loading ? (
+                    <div className="h-full flex items-center justify-center">
+                      <div className="animate-spin rounded-full h-8 w-8 border-2 border-blue-600 border-t-transparent" />
+                    </div>
+                  ) : error ? (
+                    <div className="h-full flex items-center justify-center">
+                      <p className="text-red-500">{error}</p>
+                    </div>
+                  ) : !hasDataForRange ? (
+                    <div className="h-full flex items-center justify-center">
+                      <p className="text-gray-500 text-center">
+                        Nenhum dado disponível para o período selecionado.
+                      </p>
+                    </div>
+                  ) : (
+                    <Line data={chartData} options={chartOptions} />
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card variant="elevated" padding="lg">
+              <CardHeader
+                title="Followers Snapshot"
+                description="Most recent follower lists captured for each selected account"
+              />
+              <CardContent>
                 {loading ? (
-                  <div className="h-full flex items-center justify-center">
+                  <div className="h-48 flex items-center justify-center">
                     <div className="animate-spin rounded-full h-8 w-8 border-2 border-blue-600 border-t-transparent" />
                   </div>
                 ) : error ? (
-                  <div className="h-full flex items-center justify-center">
-                    <p className="text-red-500">{error}</p>
-                  </div>
+                  <p className="text-red-500">{error}</p>
+                ) : accountsData.length === 0 ? (
+                  <p className="text-sm text-gray-500">No follower data recorded yet.</p>
                 ) : (
-                  <Line data={chartData} options={chartOptions} />
+                  <div className="grid gap-6 md:grid-cols-2">
+                    {accountsData.map((account) => {
+                      const followerCount = account.followers.length;
+                      const lastFetchedTimestamp = account.followers.reduce<number | null>((latest, follower) => {
+                        if (!follower.fetchedAt) {
+                          return latest;
+                        }
+                        const timestamp = Date.parse(follower.fetchedAt);
+                        if (Number.isNaN(timestamp)) {
+                          return latest;
+                        }
+                        if (latest === null || timestamp > latest) {
+                          return timestamp;
+                        }
+                        return latest;
+                      }, null);
+
+                      const formattedLastFetched = lastFetchedTimestamp
+                        ? new Date(lastFetchedTimestamp).toLocaleString()
+                        : 'Not synced yet';
+
+                      const visibleFollowers = account.followers.slice(0, MAX_FOLLOWERS_DISPLAY);
+                      const hiddenFollowers = followerCount - visibleFollowers.length;
+
+                      return (
+                        <div key={account.username} className="space-y-3">
+                          <div className="flex items-baseline justify-between">
+                            <h3 className="text-lg font-semibold text-slate-800">@{account.username}</h3>
+                            <span className="text-sm text-gray-500">
+                              {followerCount.toLocaleString()} follower{followerCount === 1 ? '' : 's'}
+                            </span>
+                          </div>
+                          <p className="text-xs text-gray-500">Last updated: {formattedLastFetched}</p>
+                          <div className="max-h-64 overflow-y-auto rounded-xl border border-gray-100 bg-white shadow-sm">
+                            {visibleFollowers.length === 0 ? (
+                              <p className="p-4 text-sm text-gray-500">Followers not captured yet. Run the updater to fetch this list.</p>
+                            ) : (
+                              visibleFollowers.map((follower) => (
+                                <div
+                                  key={`${account.username}-${follower.username}`}
+                                  className="flex items-center justify-between gap-4 border-b border-gray-100 px-4 py-3 last:border-b-0"
+                                >
+                                  <div className="min-w-0">
+                                    <p className="truncate font-medium text-slate-700">@{follower.username}</p>
+                                    {follower.fullName && (
+                                      <p className="truncate text-sm text-gray-500">{follower.fullName}</p>
+                                    )}
+                                  </div>
+                                  <div className="flex flex-col items-end gap-1 text-xs text-gray-500">
+                                    {follower.isVerified && (
+                                      <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-blue-600">
+                                        Verified
+                                      </span>
+                                    )}
+                                    {follower.isPrivate && (
+                                      <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5">
+                                        Private
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                              ))
+                            )}
+                          </div>
+                          {hiddenFollowers > 0 && (
+                            <p className="text-xs text-gray-500">
+                              +{hiddenFollowers.toLocaleString()} more follower{hiddenFollowers === 1 ? '' : 's'} not shown.
+                            </p>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
                 )}
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          </>
         )}
       </div>
     </main>
