@@ -69,6 +69,9 @@ jobs:
                   time.sleep(2)
           PY
 
+      - name: Seed database from JSON snapshots
+        run: python scripts/import_data.py
+
       - name: Run update script
         run: python scripts/update_followers.py
 
