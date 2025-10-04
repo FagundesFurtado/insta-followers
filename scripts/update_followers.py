@@ -1,11 +1,15 @@
 import datetime
 import json
 import os
+import random
+import time
 from pathlib import Path
 from typing import Iterable
 
 import instaloader
 from instaloader import exceptions as insta_exc
+
+from rate_limiter import GentleRateController
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 DATA_DIR = BASE_DIR / "public" / "data"
@@ -159,14 +163,25 @@ def process_accounts(usernames: Iterable[str]) -> None:
         compress_json=False,
         post_metadata_txt_pattern=None,
         max_connection_attempts=1,
+        rate_controller=GentleRateController,
     )
 
     if not load_session(loader):
         print("Session credentials not provided. Using anonymous access.")
         print("WARNING: Anonymous access has much stricter rate limits.")
 
+    last_processed: str | None = None
+
     for username in usernames:
         print(f"\n--- Processing {username} ---")
+
+        if last_processed:
+            cooldown = random.uniform(20, 45)
+            print(
+                f"Cooling down for {cooldown:.2f} seconds after {last_processed}"
+            )
+            time.sleep(cooldown)
+
         try:
             profile = instaloader.Profile.from_username(loader.context, username)
             followers = profile.followers
@@ -185,6 +200,8 @@ def process_accounts(usernames: Iterable[str]) -> None:
             )
         except Exception as exc:  # noqa: BLE001
             print(f"ERROR: Unexpected error for {username}: {exc}. Skipping.")
+
+        last_processed = username
 
     print("\n--- Script finished ---")
 
