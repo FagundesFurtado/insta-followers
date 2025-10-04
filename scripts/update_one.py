@@ -6,7 +6,8 @@ import sys
 import instaloader
 from instaloader import exceptions as insta_exc
 import psycopg
-from psycopg.extras import execute_values
+
+from db_utils import execute_values
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 INSTAGRAM_USERNAME = os.getenv("INSTAGRAM_USERNAME", "cristianofagundes")

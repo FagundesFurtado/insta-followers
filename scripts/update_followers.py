@@ -9,7 +9,8 @@ import instaloader
 from instaloader.exceptions import ConnectionException, InstaloaderException
 import psycopg
 from psycopg.rows import dict_row
-from psycopg.extras import execute_values
+
+from db_utils import execute_values
 
 # --- Setup Paths ---
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
