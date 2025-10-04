@@ -12,13 +12,13 @@
       "following": 1170
     },
     {
-      "date": "2025-07-03",
-      "followers": 58143,
+      "date": "2025-07-02",
+      "followers": 58141,
       "following": 1171
     },
     {
-      "date": "2025-07-02",
-      "followers": 58141,
+      "date": "2025-07-03",
+      "followers": 58143,
       "following": 1171
     },
     {
@@ -280,6 +280,11 @@
       "date": "2025-10-02",
       "followers": 57228,
       "following": 764
+    },
+    {
+      "date": "2025-10-04",
+      "followers": 57217,
+      "following": 765
     }
   ]
 }
