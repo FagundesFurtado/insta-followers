@@ -112,14 +112,22 @@ You can trigger the importer manually:
 docker compose exec web /opt/pyenv/bin/python /app/scripts/import_data.py
 ```
 
+When working outside the container you can achieve the same result with Node.js:
+
+```bash
+POSTGRES_HOST=localhost POSTGRES_USER=devuser POSTGRES_PASSWORD=devpass POSTGRES_DB=insta-followers \\
+npm run import-data
+```
+
 ## Cron schedule and manual updates
 
 - The updater runs every day at 03:00 UTC (see `docker/cron/update_followers`).
+- GitHub Actions uses `scripts/update_followers.py` to update the JSON snapshots directly (no database required).
 - All cron output is forwarded to the container logs; check with `docker compose logs -f web`.
-- To force an immediate refresh for every account:
+- To force an immediate refresh for every account (inside the container):
 
   ```bash
-  docker compose exec web /opt/pyenv/bin/python /app/scripts/update_followers.py
+  docker compose exec web /opt/pyenv/bin/python /app/scripts/update_followers_db.py
   ```
 
 - To fetch a single user on demand:
@@ -135,6 +143,32 @@ docker compose exec web /opt/pyenv/bin/python /app/scripts/import_data.py
 - **Environment variable**: set `INSTAGRAM_SESSION_ID` directly; no file mount is required. Combine with `INSTAGRAM_USERNAME` if the session belongs to another account.
 - If none of these options are supplied the updater falls back to anonymous mode, which is subject to heavier Instagram rate limits.
 
+## Browser extension (local scraping alternative)
+
+For a browser-based workflow, a minimal Chrome/Edge extension is included under `extension/`. When you click the extension icon it:
+
+1. Calls `GET /api/extension/accounts` with your `x-device-uuid` to obtain the active usernames in the database.
+2. Opens each Instagram profile in a background tab, reads the follower/following counts (preferring the authenticated JSON API, falling back to the DOM), and closes the tab.
+3. Posts the numbers back to `/api/extension/update`, which upserts the daily totals into PostgreSQL.
+
+Setup steps:
+
+1. Update `extension/manifest.json` only if your API is not reachable at `http://192.168.3.46:3333` (the default Docker endpoint).
+2. Edit `extension/background.js` if you need to change `CONFIG.apiBaseUrl` away from `http://192.168.3.46:3333`.
+3. In Chrome/Edge, open `chrome://extensions`, enable **Developer mode**, click **Load unpacked**, and select the `extension/` folder.
+4. Log into Instagram in the same browser profile, then click the extension icon. It will sequentially open each tracked profile, sync counts, and close the tabs.
+
+The extension only runs when triggered manually and relies on your logged-in Instagram session. It does not capture follower lists—only the aggregate counts the UI needs for day-to-day monitoring.
+
+To distribute the extension as a ZIP upload, run:
+
+```bash
+npm run publish-extension -- --api-base-url=http://192.168.3.46:3333
+```
+
+This command copies the files into `extension/dist/instagram-follower-sync-v*.zip`, optionally injecting the provided API base URL into `background.js` and adding the corresponding host permission to the manifest. If you prefer environment variables, set `EXTENSION_API_BASE_URL` instead of passing CLI flags.
+The script depends on the `zip` CLI being available on your machine (present by default on macOS/Linux and on recent Windows builds).
+
 ## Deploying on a remote host via SSH
 
 1. Copy the repository to the target server (for example: `rsync -av --exclude node_modules . user@server:/opt/insta-followers`).
@@ -149,7 +183,7 @@ docker compose exec web /opt/pyenv/bin/python /app/scripts/import_data.py
 ## Development notes
 
 - The Next.js API now reads accounts and history directly from PostgreSQL (`lib/db.ts`).
-- Python scripts (`scripts/update_followers.py`, `scripts/update_one.py`) use the same connection settings and upsert logic, keeping the database authoritative for follower data.
+- Python scripts (`scripts/update_followers_db.py`, `scripts/update_one.py`) use the same connection settings and upsert logic, keeping the database authoritative for follower data.
 - Follower snapshots are stored in the `account_followers` table, populated by the update scripts and exposed through the `/api/data/[username]` endpoint for the UI follower breakdown.
 - Account deletion is now soft-delete only: `/api/accounts/delete` flags the row so metadata is retained. Soft-deleted profiles remain visible in reports but are processed last by the updaters and absorb any enforced timeouts.
 - Device-based authorization: insert trusted device UUIDs into the `admin_devices` table so those browsers can add or remove tracked accounts. Other visitors remain read-only. The UI stores the UUID locally and validates it through `/api/admin/device/verify` before enabling management actions.
